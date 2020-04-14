@@ -10,6 +10,8 @@ let filename
 
 if (process.env.UI_STYLES === 'classic') {
   filename = 'application.classic.css'
+} else if (process.env.UI_STYLES === 'ethercore') {
+  filename = 'application.ethercore.css'
 } else {
   filename = 'application.core.css'
 }

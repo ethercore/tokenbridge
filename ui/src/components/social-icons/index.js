@@ -1,4 +1,5 @@
 export * from './IconGithub'
 export * from './IconPOA'
+export * from './IconEthercore'
 export * from './IconTelegram'
 export * from './IconTwitter'
