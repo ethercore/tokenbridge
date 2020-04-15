@@ -2,7 +2,7 @@ import React from 'react'
 import numeral from 'numeral'
 import { InfoIcon } from './icons/InfoIcon'
 
-export const BridgeNetwork = ({ balance, currency, isHome, networkSubtitle, networkTitle, showModal, side }) => {
+export const BridgeNetwork = ({ balance, currency, isHome, networkSubtitle, networkTitle, showModal, side, showNativeDescription, showTokenDescription }) => {
   const containerName = isHome ? 'home' : 'foreign'
   const formattedBalance = isNaN(numeral(balance).format('0.00', Math.floor))
     ? numeral(0).format('0,0.00', Math.floor)
@@ -38,6 +38,16 @@ export const BridgeNetwork = ({ balance, currency, isHome, networkSubtitle, netw
           {formattedBalance} {currency}
         </span>
       </p>
+      {showNativeDescription && showTokenDescription && (
+        <div>
+          <div className="bridge-network-data" onClick={showNativeDescription}>
+            <span className="network-show-more">Swap ERE to ERE20</span>
+          </div>
+          <div className="bridge-network-data" onClick={showTokenDescription}>
+            <span className="network-show-more">Swap ERE20 to ERE</span>
+          </div>
+        </div>
+      )}
       {showMore()}
     </div>
   )

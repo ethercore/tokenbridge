@@ -99,6 +99,144 @@ class TxStore {
     }
   }
 
+  @action
+  async swapToERC20({ value }) {
+    try {
+      return this.web3Store.getWeb3Promise.then(async () => {
+        if (this.web3Store.defaultAccount.address) {
+          const data = await this.foreignStore.swapContract.methods
+            .swapToERE20()
+            .encodeABI()
+          const to = this.foreignStore.swapContractAddress
+          const from = this.web3Store.defaultAccount.address
+          const gasPrice = this.gasPriceStore.gasPriceInHex
+          const gas = await estimateGas(this.web3Store.injectedWeb3, to, gasPrice, from, value, data)
+          return this.web3Store.injectedWeb3.eth
+            .sendTransaction({
+              to,
+              gasPrice,
+              gas,
+              from,
+              value,
+              data,
+              chainId: this.web3Store.metamaskNet.id
+            })
+            .on('transactionHash', hash => {
+              console.log('txHash', hash)
+              this.alertStore.setLoading(false)
+            })
+            .on('error', e => {
+              if (
+                !e.message.includes('not mined within 50 blocks') &&
+                !e.message.includes('Failed to subscribe to new newBlockHeaders')
+              ) {
+                this.alertStore.setLoading(false)
+                this.alertStore.pushError('Transaction rejected on wallet')
+              }
+            })
+        } else {
+          this.alertStore.pushError('Please unlock wallet')
+        }
+      })
+    } catch (e) {
+      this.alertStore.pushError(e)
+    }
+  }
+
+  @action
+  async swapToNative({ amount }) {
+    try {
+      return this.web3Store.getWeb3Promise.then(async () => {
+        if (this.web3Store.defaultAccount.address) {
+          const data = await this.foreignStore.tokenContract.methods
+            .approve(this.foreignStore.swapContractAddress, amount)
+            .encodeABI()
+          const to = this.foreignStore.tokenAddress
+          const from = this.web3Store.defaultAccount.address
+          const value = '0x00'
+          const gasPrice = this.gasPriceStore.gasPriceInHex
+          const gas = await estimateGas(this.web3Store.injectedWeb3, to, gasPrice, from, value, data)
+          return this.web3Store.injectedWeb3.eth
+            .sendTransaction({
+              to,
+              gasPrice,
+              gas,
+              from,
+              value,
+              data,
+              chainId: this.web3Store.metamaskNet.id
+            })
+            .on('transactionHash', hash => {
+              console.log('txHash', hash)
+              this.txsValues[hash] = value
+              this.alertStore.setLoadingStepIndex(1)
+              addPendingTransaction()
+              this.getTxReceipt2(hash, amount)
+            })
+            .on('error', e => {
+              if (
+                !e.message.includes('not mined within 50 blocks') &&
+                !e.message.includes('Failed to subscribe to new newBlockHeaders')
+              ) {
+                this.alertStore.setLoading(false)
+                this.alertStore.pushError('Transaction rejected on wallet')
+              }
+            })
+        } else {
+          this.alertStore.pushError('Please unlock wallet')
+        }
+      })
+    } catch (e) {
+      this.alertStore.pushError(e)
+    }
+  }
+
+  @action
+  async swapToNative2({ amount }) {
+    try {
+      this.alertStore.setLoading(true)
+      return this.web3Store.getWeb3Promise.then(async () => {
+        if (this.web3Store.defaultAccount.address) {
+          const data = await this.foreignStore.swapContract.methods
+            .swapToNative(amount)
+            .encodeABI()
+          const to = this.foreignStore.swapContractAddress
+          const from = this.web3Store.defaultAccount.address
+          const value = '0x00'
+          const gasPrice = this.gasPriceStore.gasPriceInHex
+          const gas = await estimateGas(this.web3Store.injectedWeb3, to, gasPrice, from, value, data)
+          return this.web3Store.injectedWeb3.eth
+            .sendTransaction({
+              to,
+              gasPrice,
+              gas,
+              from,
+              value,
+              data,
+              chainId: this.web3Store.metamaskNet.id
+            })
+            .on('transactionHash', hash => {
+              console.log('txHash', hash)
+              this.alertStore.setLoading(false)
+            })
+            .on('error', e => {
+              if (
+                !e.message.includes('not mined within 50 blocks') &&
+                !e.message.includes('Failed to subscribe to new newBlockHeaders')
+              ) {
+                this.alertStore.setLoading(false)
+                this.alertStore.pushError('Transaction rejected on wallet')
+              }
+            })
+        } else {
+          this.alertStore.pushError('Please unlock wallet')
+        }
+      })
+    } catch (e) {
+      this.alertStore.pushError(e)
+    }
+  }
+
   async getTxReceipt(hash) {
     const web3 = this.web3Store.injectedWeb3
     web3.eth.getTransaction(hash, (error, res) => {
@@ -108,6 +246,20 @@ class TxStore {
         console.log('not mined yet', hash)
         setTimeout(() => {
           this.getTxReceipt(hash)
+        }, 5000)
+      }
+    })
+  }
+
+  async getTxReceipt2(hash, amount) {
+    const web3 = this.web3Store.injectedWeb3
+    web3.eth.getTransaction(hash, (error, res) => {
+      if (res && res.blockNumber) {
+        this.getTxStatus2(hash, amount)
+      } else {
+        console.log('not mined yet', hash)
+        setTimeout(() => {
+          this.getTxReceipt2(hash, amount)
         }, 5000)
       }
     })
@@ -179,6 +331,33 @@ class TxStore {
         }
       } else {
         this.getTxStatus(hash)
+      }
+    })
+  }
+
+  async getTxStatus2(hash, amount) {
+    const web3 = this.web3Store.injectedWeb3
+    web3.eth.getTransactionReceipt(hash, (error, res) => {
+      if (res && res.blockNumber) {
+        if (this.isStatusSuccess(res)) {
+          const blockConfirmations = this.foreignStore.latestBlockNumber - res.blockNumber
+          if (blockConfirmations >= 1) {
+            this.alertStore.setBlockConfirmations(8)
+            this.alertStore.setLoadingStepIndex(3)
+            removePendingTransaction()
+            this.swapToNative2({ amount })
+          } else {
+            if (blockConfirmations > 0) {
+              this.alertStore.setBlockConfirmations(blockConfirmations)
+            }
+            this.getTxStatus2(hash, amount)
+          }
+        } else {
+          this.alertStore.setLoading(false)
+          this.alertStore.pushError(`${hash} Mined but with errors. Perhaps out of gas`)
+        }
+      } else {
+        this.getTxStatus2(hash, amount)
       }
     })
   }

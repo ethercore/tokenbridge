@@ -1,5 +1,5 @@
 import { action, observable } from 'mobx'
-import { getBlockNumber } from './utils/web3'
+import { getBlockNumber, getBalance } from './utils/web3'
 import {
   BRIDGE_VALIDATORS_ABI,
   ERC677_BRIDGE_TOKEN_ABI,
@@ -12,6 +12,9 @@ import {
   ERC20_BYTES32_ABI,
   getDeployedAtBlock
 } from '../../../commons'
+import {
+  SWAP_CONTRACT_ABI
+} from '../../contract/contract'
 import {
   getMaxPerTxLimit,
   getMinPerTxLimit,
@@ -62,6 +65,9 @@ class ForeignStore {
   balance = ''
 
   @observable
+  nativeTokenBalance = ''
+
+  @observable
   filter = false
 
   @observable
@@ -98,6 +104,9 @@ class ForeignStore {
   tokenAddress = ''
 
   @observable
+  swapContractAddress = '0x4Fb26Ac4b06Dc15eaDF7cB5E2d7f8C7D6dAAC40C'
+
+  @observable
   feeEventsFinished = false
 
   @observable
@@ -111,6 +120,7 @@ class ForeignStore {
   filteredBlockNumber = 0
   foreignBridge = {}
   tokenContract = {}
+  swapContract = {}
   tokenDecimals = 18
   COMMON_FOREIGN_BRIDGE_ADDRESS = process.env.REACT_APP_COMMON_FOREIGN_BRIDGE_ADDRESS
   explorerTxTemplate = process.env.REACT_APP_UI_FOREIGN_EXPLORER_TX_TEMPLATE || ''
@@ -133,11 +143,13 @@ class ForeignStore {
     }
     const { FOREIGN_ABI } = getBridgeABIs(this.rootStore.bridgeMode)
     this.foreignBridge = new this.foreignWeb3.eth.Contract(FOREIGN_ABI, this.COMMON_FOREIGN_BRIDGE_ADDRESS)
+    this.swapContract = new this.foreignWeb3.eth.Contract(SWAP_CONTRACT_ABI, this.swapContractAddress)
     await this.getBlockNumber()
     await this.getTokenInfo()
     this.getMinPerTxLimit()
     this.getMaxPerTxLimit()
     this.getEvents()
+    this.getNativeTokenBalance()
     this.getTokenBalance()
     this.getCurrentLimit()
     this.getFee()
@@ -146,6 +158,7 @@ class ForeignStore {
     setInterval(() => {
       this.getBlockNumber()
       this.getEvents()
+      this.getNativeTokenBalance()
       this.getTokenBalance()
       this.getCurrentLimit()
     }, 15000)
@@ -214,6 +227,15 @@ class ForeignStore {
         this.balance = await getBalanceOf(this.tokenContract, this.web3Store.defaultAccount.address)
         balanceLoaded()
       })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  @action
+  async getNativeTokenBalance() {
+    try {
+      this.nativeTokenBalance = await getBalance(this.foreignWeb3, this.web3Store.defaultAccount.address)
     } catch (e) {
       console.error(e)
     }

@@ -11,6 +11,7 @@ import { BridgeNetwork } from './index'
 import { ModalContainer } from './ModalContainer'
 import { NetworkDetails } from './NetworkDetails'
 import { TransferAlert } from './TransferAlert'
+import { SwapDescription } from './SwapDescription'
 import { getFeeToApply, validFee } from '../stores/utils/rewardable'
 import { inject, observer } from 'mobx-react'
 import { toDecimals } from '../stores/utils/decimals'
@@ -21,10 +22,13 @@ export class Bridge extends React.Component {
   state = {
     reverse: false,
     amount: '',
+    swapAmount: '',
     modalData: {},
     confirmationData: {},
     showModal: false,
-    showConfirmation: false
+    showConfirmation: false,
+    showDescription: false,
+    isNative: false
   }
 
   handleInputChange = name => event => {
@@ -180,6 +184,48 @@ export class Bridge extends React.Component {
     }
   }
 
+  async _swapToERE20(amount) {
+    const { web3Store, homeStore, foreignStore, alertStore, txStore } = this.props.RootStore
+    const { isGreaterThan } = this
+    if (web3Store.metamaskNet.id.toString() !== web3Store.foreignNet.id.toString()) {
+      swal('Error', `Please switch wallet to ${web3Store.foreignNet.name} network`, 'error')
+      return
+    }
+    if (isGreaterThan(amount, foreignStore.nativeTokenBalance)) {
+      alertStore.pushError(`Insufficient token balance. Your balance is ${foreignStore.nativeTokenBalance} ${homeStore.symbol}`)
+    } else {
+      try {
+        alertStore.setLoading(true)
+        return await txStore.swapToERC20({
+          value: toDecimals(amount, foreignStore.tokenDecimals)
+        })
+      } catch (e) {
+        console.error(e)
+      }
+    }
+  }
+
+  async _swapToNative(amount) {
+    const { web3Store, foreignStore, alertStore, txStore } = this.props.RootStore
+    const { isGreaterThan } = this
+    if (web3Store.metamaskNet.id.toString() !== web3Store.foreignNet.id.toString()) {
+      swal('Error', `Please switch wallet to ${web3Store.foreignNet.name} network`, 'error')
+      return
+    }
+    if (isGreaterThan(amount, foreignStore.balance)) {
+      alertStore.pushError(`Insufficient token balance. Your balance is ${foreignStore.balance} ${foreignStore.symbol}`)
+    } else {
+      try {
+        alertStore.setLoading(true)
+        return await txStore.swapToNative({
+          amount: toDecimals(amount, foreignStore.tokenDecimals)
+        })
+      } catch (e) {
+        console.error(e)
+      }
+    }
+  }
+
   isLessThan = (amount, base) => new BN(amount).lt(new BN(base))
 
   isGreaterThan = (amount, base) => new BN(amount).gt(new BN(base))
@@ -257,6 +303,33 @@ export class Bridge extends React.Component {
     }
   }
 
+  onSwap = async () => {
+    const { alertStore } = this.props.RootStore
+    const { isNative } = this.state
+
+    this.setState({ showDescription: false })
+    const swapAmount = this.state.swapAmount.trim()
+    if (!swapAmount) {
+      swal('Error', 'Please specify amount', 'error')
+      return
+    }
+
+    try {
+      if (isNative) {
+        await this._swapToERE20(swapAmount)
+      } else {
+        await this._swapToNative(swapAmount)
+      }
+    } catch (e) {
+      if (
+        !e.message.includes('not mined within 50 blocks') &&
+        !e.message.includes('Failed to subscribe to new newBlockHeaders')
+      ) {
+        alertStore.setLoading(false)
+      }
+    }
+  }
+
   loadHomeDetails = () => {
     const { web3Store, homeStore, bridgeMode } = this.props.RootStore
     const isErcToErcMode = bridgeMode === BRIDGE_MODES.ERC_TO_ERC
@@ -313,6 +386,14 @@ export class Bridge extends React.Component {
     this.setState({ modalData, showModal: true })
   }
 
+  showNativeDescription = () => {
+    this.setState({ isNative: true, showDescription: true })
+  }
+
+  showTokenDescription = () => {
+    this.setState({ isNative: false, showDescription: true })
+  }
+
   getNetworkTitle = networkName => {
     const index = networkName.indexOf(' ')
 
@@ -335,7 +416,7 @@ export class Bridge extends React.Component {
 
   render() {
     const { web3Store, foreignStore, homeStore } = this.props.RootStore
-    const { reverse, showModal, modalData, showConfirmation, confirmationData } = this.state
+    const { reverse, showModal, modalData, showConfirmation, confirmationData, showDescription, isNative } = this.state
     const formCurrency = reverse ? foreignStore.symbol : homeStore.symbol
 
     if (showModal && Object.keys(modalData).length !== 0) {
@@ -369,6 +450,8 @@ export class Bridge extends React.Component {
                   networkTitle={reverse ? foreignNetworkName : homeNetworkName}
                   showModal={reverse ? this.loadForeignDetails : this.loadHomeDetails}
                   side="left"
+                  showNativeDescription={reverse ? this.showNativeDescription : null}
+                  showTokenDescription={reverse ? this.showTokenDescription : null}
                 />
                 <BridgeForm
                   currency={formCurrency}
@@ -408,6 +491,21 @@ export class Bridge extends React.Component {
                 this.setState({ showConfirmation: false, confirmationData: {} })
               }}
               {...confirmationData}
+            />
+          </ModalContainer>
+          <ModalContainer showModal={showDescription}>
+            <SwapDescription
+              onSwap={this.onSwap}
+              onCancel={() => {
+                this.setState({ showDescription: false })
+              }}
+              onInputChange={this.handleInputChange('swapAmount')}
+              isNative={isNative}
+              networkTitle={foreignNetworkSubtitle}
+              fromCurrency={isNative ? homeStore.symbol : foreignStore.symbol}
+              toCurrency={isNative ? foreignStore.symbol : homeStore.symbol}
+              fromAmount={isNative ? foreignStore.nativeTokenBalance : foreignStore.balance}
+              toAmount={isNative ? foreignStore.balance : foreignStore.nativeTokenBalance}
             />
           </ModalContainer>
         </div>
