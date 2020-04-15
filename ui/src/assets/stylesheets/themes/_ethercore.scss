@@ -54,13 +54,13 @@ $logo-image: $base-images-path + '/themes/' + $theme-name + '/logos/logo.svg';
 
 // home logo
 $home-logo-image: $base-images-path + '/themes/' + $theme-name + '/logos/logo-home.svg';
-$home-logo-image-modal: $base-images-path + '/themes/' + $theme-name + '/logos/logo-home.svg';
+$home-logo-image-modal: $base-images-path + '/themes/' + $theme-name + '/logos/logo-home-modal.svg';
 $home-logo-width: 24px;
 $home-logo-height: 38px;
 
 // foreign logo
 $foreign-logo-image: $base-images-path + '/themes/' + $theme-name + '/logos/logo-foreign.svg';
-$foreign-logo-image-modal: $base-images-path + '/themes/' + $theme-name + '/logos/logo-foreign.svg';
+$foreign-logo-image-modal: $base-images-path + '/themes/' + $theme-name + '/logos/logo-foreign-modal.svg';
 $foreign-logo-width: 24px;
 $foreign-logo-height: 38px;
 
